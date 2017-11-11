@@ -344,6 +344,7 @@ namespace TCP_IP
             }
             else
             {
+
                 SocketID = 0;
             }
             ClientConnent(ListenIPEndPoint, SocketID);                                             // 执行客户端连接委托事件
