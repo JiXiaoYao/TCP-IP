@@ -43,7 +43,7 @@ namespace TCP_IP
         /// <summary>
         /// 客户端消息事件委托
         /// </summary>
-        ClientMessagesDelegate ClientMessages;
+        public  ClientMessagesDelegate ClientMessages;
         /// <summary>
         /// Tcp套接字终止连接事件委托
         /// </summary>
@@ -53,7 +53,7 @@ namespace TCP_IP
         /// <summary>
         /// Tcp套接字终止连接事件委托
         /// </summary>
-        ConnentStopDelegate ConnentStop;
+        public ConnentStopDelegate ConnentStop;
         /// <summary>
         /// Tcp客户端连接事件委托
         /// </summary>
@@ -63,7 +63,7 @@ namespace TCP_IP
         /// <summary>
         /// Tcp客户端连接事件委托
         /// </summary>
-        ClientConnentDelegate ClientConnent;
+        public ClientConnentDelegate ClientConnent;
         #endregion
         #region 字典
         /// <summary>
