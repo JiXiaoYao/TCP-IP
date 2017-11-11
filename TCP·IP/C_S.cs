@@ -4,11 +4,10 @@ using System.Net.Sockets;
 using System.Linq;
 using System.Collections.Generic;
 using System.Threading;
+using System.Runtime;
 
 namespace TCP_IP
 {
-    //
-
     /// <summary>
     /// 服务端
     /// </summary>
@@ -29,7 +28,7 @@ namespace TCP_IP
         /// <summary>
         /// 以网络终结点为key的套接字储存字典的储存字典
         /// </summary>
-        public Dictionary<IPEndPoint, Dictionary<int, Socket>> SocketIPEndPointDict = new Dictionary<IPEndPoint, Dictionary<int, Socket>>();
+        public Dictionary<IPEndPoint, Dictionary<long, Socket>> SocketIPEndPointDict = new Dictionary<IPEndPoint, Dictionary<long, Socket>>();
         #endregion
         #region 委托
         /// <summary>
@@ -43,7 +42,7 @@ namespace TCP_IP
         /// <summary>
         /// 客户端消息事件委托
         /// </summary>
-        public  ClientMessagesDelegate ClientMessages;
+        public ClientMessagesDelegate ClientMessages;
         /// <summary>
         /// Tcp套接字终止连接事件委托
         /// </summary>
@@ -92,7 +91,12 @@ namespace TCP_IP
         /// <param name="ServerMessageSize">接收消息缓存区大小</param>
         public Server(IPAddress[] IpArray, int Port, int ServerMessageSize)
         {
-            if (Port < 1 && Port > 65535)
+            string ErrorEndPoint = null;                                                           // 创建储存错误网络终结点的字符串
+            for (int i = 0; i < IpArray.Length; i = i + 1)                                         // 遍历IP地址
+                try { TcpListener tL = new TcpListener(IpArray[i], Port); tL.Start(); tL.Stop(); } // 绑定 监听 停止监听
+                catch { ErrorEndPoint = ErrorEndPoint + "\r\n" + IpArray[i] + ":" + Port; }        // 如果监听失败代表已被占用
+            if (ErrorEndPoint != null) { throw new ArgumentOutOfRangeException(ErrorEndPoint + "已被占用"); }// 如果不为空就抛出错误
+            if (Port < 1 && Port > 65535)                                                          // 检测端口是否符合标准
             {
                 throw new ArgumentOutOfRangeException("端口" + Port + "不符合规则");
             }
@@ -102,11 +106,14 @@ namespace TCP_IP
             }
             else
             {
-                ServerMode = ListenMode.Mode1;
-                ListenIP = IpArray;
-                ListenPort[0] = Port;
-                MessageSize = ServerMessageSize;
+                ServerMode = ListenMode.Mode1;                                                     // 设定模式
+                ListenIP = IpArray;                                                                // 赋值IP
+                int[] port = { Port };
+                ListenPort = port;                                                                 // 赋值端口
+                MessageSize = ServerMessageSize;                                                   // 赋值缓冲区大小
             }
+            cc: int a = 0;
+            a = a + 1;
         }
         #region 重载
         /// <summary>
@@ -118,6 +125,7 @@ namespace TCP_IP
         /// <param name="ServerMessageSize">接收消息缓存区大小</param>
         public Server(IPAddress[] IpArray, int[] Port, int ServerMessageSize)
         {
+            string ErrorEndPoint = null;
             List<int> ErrorList = new List<int>();
             for (int i = 0; i < Port.Length; i = i + 1)
             {
@@ -126,7 +134,14 @@ namespace TCP_IP
                     ErrorList.Add(Port[i]);
                     throw new ArgumentOutOfRangeException("端口" + Port[i] + "有误");
                 }
+                else
+                {
+                    for (int ia = 0; ia < IpArray.Length; ia = ia + 1)
+                        try { TcpListener tL = new TcpListener(IpArray[ia], Port[i]); tL.Start(); tL.Stop(); }
+                        catch { ErrorEndPoint = ErrorEndPoint + "\r\n" + IpArray[ia] + ":" + Port[i]; }
+                }
             }
+            if (ErrorEndPoint != null) { throw new ArgumentOutOfRangeException(ErrorEndPoint + "已被占用"); }
             if (ServerMessageSize < 10)
             {
                 throw new ArgumentOutOfRangeException("缓冲区过小，小于10");
@@ -151,16 +166,30 @@ namespace TCP_IP
                 for (int i = 0; i < ListenIP.Length; i = i + 1)                                    // 循环遍历操作每个IP合上端口的网络终结点
                 {
                     IPEndPoint ListenEndPoint = new IPEndPoint(ListenIP[i], ListenPort[0]);        // 根据对应IP和端口创立网络终结点
-                    SocketIPEndPointDict.Add(ListenEndPoint, new Dictionary<int, Socket>());       // 在套接字数组内添加对应 网络终结点 键和 套接字字典 值
+                    SocketIPEndPointDict.Add(ListenEndPoint, new Dictionary<long, Socket>());       // 在套接字数组内添加对应 网络终结点 键和 套接字字典 值
                     Socket ListenSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);// 创立监听套接字
                     try
                     {
-                        ListenSocket.Bind(ListenEndPoint);                                             // 绑定网络终结点
-                        ListenSocket.Listen(1000);                                                     // 设为监听模式 设置连接队列上限
+                        try
+                        {
+                            ListenSocket.Bind(ListenEndPoint);                                         // 绑定网络终结点
+                        }
+                        catch (Exception e)
+                        {
+                            throw new ArgumentOutOfRangeException("在绑定网络终结点时出错：\r\n" + e.Message + "\r\n位于：\r\n" + e.Source);
+                        }
+                        try
+                        {
+                            ListenSocket.Listen(1000);                                                 // 设为监听模式 设置连接队列上限
+                        }
+                        catch (Exception e)
+                        {
+                            throw new ArgumentOutOfRangeException("在设为监听模式时出错：\r\n" + e.Message + "\r\n位于：\r\n" + e.Source);
+                        }
                         ListenThreadDict.Add(ListenEndPoint, new Thread(new ThreadStart(() => Listening(ListenEndPoint, ListenSocket))));// 创建监听线程并加入字典
-                        ListenThreadDict[ListenEndPoint].IsBackground = true;                          // 设为后台线程
-                        ListenThreadDict[ListenEndPoint].Start();                                      // 启动线程
-                        ListenSocketDict.Add(ListenEndPoint, ListenSocket);                            // 将监听套接字加入字典
+                        ListenThreadDict[ListenEndPoint].IsBackground = true;                      // 设为后台线程
+                        ListenThreadDict[ListenEndPoint].Start();                                  // 启动线程
+                        ListenSocketDict.Add(ListenEndPoint, ListenSocket);                        // 将监听套接字加入字典
                     }
                     catch (Exception e)
                     {
@@ -172,19 +201,19 @@ namespace TCP_IP
             {
                 for (int ia = 0; ia < ListenPort.Length; ia = ia + 1)
                 {
-                    for (int i = 0; i < ListenIP.Length; i = i + 1)                                    // 循环遍历操作每个IP合上端口的网络终结点
+                    for (int i = 0; i < ListenIP.Length; i = i + 1)                                // 循环遍历操作每个IP合上端口的网络终结点
                     {
-                        IPEndPoint ListenEndPoint = new IPEndPoint(ListenIP[i], ListenPort[ia]);       // 根据对应IP和端口创立网络终结点
-                        SocketIPEndPointDict.Add(ListenEndPoint, new Dictionary<int, Socket>());       // 在套接字数组内添加对应 网络终结点 键和 套接字字典 值
+                        IPEndPoint ListenEndPoint = new IPEndPoint(ListenIP[i], ListenPort[ia]);   // 根据对应IP和端口创立网络终结点
+                        SocketIPEndPointDict.Add(ListenEndPoint, new Dictionary<long, Socket>());   // 在套接字数组内添加对应 网络终结点 键和 套接字字典 值
                         Socket ListenSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);// 创立监听套接字
                         try
                         {
-                            ListenSocket.Bind(ListenEndPoint);                                             // 绑定网络终结点
-                            ListenSocket.Listen(1000);                                                     // 设为监听模式 设置连接队列上限
+                            ListenSocket.Bind(ListenEndPoint);                                     // 绑定网络终结点
+                            ListenSocket.Listen(1000);                                             // 设为监听模式 设置连接队列上限
                             ListenThreadDict.Add(ListenEndPoint, new Thread(new ThreadStart(() => Listening(ListenEndPoint, ListenSocket))));// 创建监听线程并加入字典
-                            ListenThreadDict[ListenEndPoint].IsBackground = true;                          // 设为后台线程
-                            ListenThreadDict[ListenEndPoint].Start();                                      // 启动线程
-                            ListenSocketDict.Add(ListenEndPoint, ListenSocket);                            // 将监听套接字加入字典
+                            ListenThreadDict[ListenEndPoint].IsBackground = true;                  // 设为后台线程
+                            ListenThreadDict[ListenEndPoint].Start();                              // 启动线程
+                            ListenSocketDict.Add(ListenEndPoint, ListenSocket);                    // 将监听套接字加入字典
                         }
                         catch (Exception e)
                         {
@@ -193,6 +222,7 @@ namespace TCP_IP
                     }
                 }
             }
+
         }
         /// <summary>
         /// 添加端口侦听
@@ -225,8 +255,8 @@ namespace TCP_IP
                     else
                         port.Add(Port);
                 ListenPort = port.ToArray();
-                IPEndPoint ListenEndPoint = new IPEndPoint(IP, Port);                          // 根据对应IP和端口创立网络终结点
-                SocketIPEndPointDict.Add(ListenEndPoint, new Dictionary<int, Socket>());       // 在套接字数组内添加对应 网络终结点 键和 套接字字典 值
+                IPEndPoint ListenEndPoint = new IPEndPoint(IP, Port);                              // 根据对应IP和端口创立网络终结点
+                SocketIPEndPointDict.Add(ListenEndPoint, new Dictionary<long, Socket>());           // 在套接字数组内添加对应 网络终结点 键和 套接字字典 值
                 Socket ListenSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);// 创立监听套接字
                 try
                 {
@@ -245,6 +275,9 @@ namespace TCP_IP
         }
         #endregion
         #region 关闭服务端
+        /// <summary>
+        /// 关闭服务端
+        /// </summary>
         public void Stop()
         {
             int SocketNumber = ListenSocketDict.Keys.Count;                                        // 获取监听套接字数量
@@ -284,16 +317,15 @@ namespace TCP_IP
             {
                 try
                 {
-                    Socket ConnectSocket = ListenSocket.Accept();                                      // 阻塞线程 开始侦听 收到连接 执行下句
-                    ThreadPool.QueueUserWorkItem(ConnectDeal(ListenIPEndPoint, ConnectSocket));        // 创建客户端连接处理线程进行处理
+                    Socket ConnectSocket = ListenSocket.Accept();                                  // 阻塞线程 开始侦听 收到连接 执行下句
+                    Thread thread = new Thread(new ThreadStart(() => ConnectDeal(ListenIPEndPoint, ConnectSocket)));
+                    thread.IsBackground = true;                                                    // 设为后台线程
+                    thread.Start();                                                                // 启动线程
                 }
                 catch (Exception e)
                 {
-                    throw new ArgumentOutOfRangeException("在监听时出错：\r\n" + e.Message + "\r\n位于：\r\n" + e.Source);
+                    throw new ArgumentOutOfRangeException("在获取客户端连接时出错：\r\n" + e.Message + "\r\n位于：\r\n" + e.Source);
                 }
-                /*Thread thread = new Thread(new ThreadStart(() => ConnectDeal(ListenIPEndPoint, ConnectSocket)));
-                thread.IsBackground = true;                                                        // 设为后台线程
-                thread.Start();                                                                    // 启动线程*/
             }
         }
         /// <summary>
@@ -301,17 +333,25 @@ namespace TCP_IP
         /// </summary>
         /// <param name="ListenIPEndPoint">监听的网络终结点</param>
         /// <param name="ConnectSocket">连接的套接字</param>
-        private WaitCallback ConnectDeal(IPEndPoint ListenIPEndPoint, Socket ConnectSocket)
+        private void ConnectDeal(IPEndPoint ListenIPEndPoint, Socket ConnectSocket)
         {
-            //               套接字储存字典字典   键对应的字典      的键    的数组             的最后一个键的数值
-            int SocketID = SocketIPEndPointDict[ListenIPEndPoint].Keys.ToArray()[SocketIPEndPointDict[ListenIPEndPoint].Keys.Count] + 1;// 获取处理键值
+            int SocketID;
+            if (SocketIPEndPointDict[ListenIPEndPoint].Keys.Count > 0)
+            {
+                Dictionary<long, Socket> dictionarySocket = SocketIPEndPointDict[ListenIPEndPoint];
+                //               套接字储存字典字典   键对应的字典      的键    的数组             的最后一个键的数值
+                SocketID = (int)dictionarySocket.Keys.ToArray()[dictionarySocket.Count - 1] + 1;// 获取处理键值
+            }
+            else
+            {
+                SocketID = 0;
+            }
             ClientConnent(ListenIPEndPoint, SocketID);                                             // 执行客户端连接委托事件
-            //套接字储存字典字典 键对应的字典 添加（   套接字储存字典字典   键对应的字典      的键    的数组             的最后一个键的数值                     + 1 ,Socket套接字）
+                                                                                                   //套接字储存字典字典 键对应的字典 添加（   套接字储存字典字典   键对应的字典      的键    的数组             的最后一个键的数值                     + 1 ,Socket套接字）
             SocketIPEndPointDict[ListenIPEndPoint].Add(SocketID, ConnectSocket);                   // 把套接字ID和套接字加入数组
             Thread thread = new Thread(new ThreadStart(() => MessagesReceive(ListenIPEndPoint, ConnectSocket, SocketID)));// 创建消息接收线程
             thread.IsBackground = true;                                                            // 设为后台线程
             thread.Start();                                                                        // 启动线程
-            return null;
         }
         /// <summary>
         /// 消息接收方法
@@ -321,7 +361,8 @@ namespace TCP_IP
         /// <param name="SocketDictID">套接字ID</param>
         private void MessagesReceive(IPEndPoint ListenIPEndPoint, Socket ConnectSocket, int SocketDictID)
         {
-            while (ConnectSocket.Poll(1, SelectMode.SelectWrite))                                  // 确认套接字连接状态
+            bool SocketState = true;
+            while (SocketState)                                  // 确认套接字连接状态
             {
                 bool NoError = true;                                                               // 错误标识
                 byte[] MessagesArray = new byte[MessageSize];                                      // 创立缓冲区
@@ -338,20 +379,32 @@ namespace TCP_IP
                 {
                     ClientMessages(ListenIPEndPoint, SocketDictID, MessagesArray, Length);         // 执行委托的事件，输出消息
                 }
+                try { SocketState = ConnectSocket.Poll(1, SelectMode.SelectWrite); } catch { goto cc; }// 发生错误直接跳出循环
             }
             // 当结束循环时就证明连接已中断
             // 现在处理连接中断后事
-            ConnectSocket.Dispose();                                                               // 释放当前套接字
+            cc: ConnectSocket.Dispose();                                                           // 释放当前套接字
             SocketIPEndPointDict[ListenIPEndPoint].Remove(SocketDictID);                           // 从字典中移除该套接字
             ConnentStop(ListenIPEndPoint, SocketDictID);                                           // 执行客户端终止连接信息委托事件
             GC.Collect();
         }
         #endregion
         #region 主动执行功能
+        /// <summary>
+        /// 发送
+        /// </summary>
+        /// <param name="ListenIPEndPoint"></param>
+        /// <param name="SocketID"></param>
+        /// <param name="SendContext"></param>
         public void Send(IPEndPoint ListenIPEndPoint, int SocketID, byte[] SendContext)
         {
             SocketIPEndPointDict[ListenIPEndPoint][SocketID].Send(SendContext);
         }
+        /// <summary>
+        /// 关闭单个连接
+        /// </summary>
+        /// <param name="ListenIPEndPoint"></param>
+        /// <param name="SocketID"></param>
         public void Close(IPEndPoint ListenIPEndPoint, int SocketID)
         {
             SocketIPEndPointDict[ListenIPEndPoint][SocketID].Dispose();
