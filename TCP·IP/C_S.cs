@@ -260,6 +260,40 @@ namespace TCP_IP
             SocketIPEndPointDict[ListenIPEndPoint].Remove(SocketDictID);                           // 从字典中移除该套接字
         }
         #endregion
+        public void AddListen(IPAddress IP, int Port)
+        {
+            if (Port < 1 && Port > 65535)
+            {
+                throw new ArgumentOutOfRangeException("端口" + Port + "不符合规则");
+            }
+            else
+            {
+                List<IPAddress> Ip = new List<IPAddress>();
+                for (int i = 0; i < ListenIP.Length + 1; i = i + 1)
+                    if (i != ListenIP.Length + 1)
+                        Ip.Add(ListenIP[i]);
+                    else
+                        Ip.Add(IP);
+                ListenIP = Ip.ToArray();
+                List<int> port = new List<int>();
+                for (int i = 0; i < ListenPort.Length + 1; i = i + 1)
+                    if (i != ListenPort.Length + 1)
+                        port.Add(ListenPort[i]);
+                    else
+                        port.Add(Port);
+                ListenPort = port.ToArray();
+                IPEndPoint ListenEndPoint = new IPEndPoint(IP, Port);                          // 根据对应IP和端口创立网络终结点
+                SocketIPEndPointDict.Add(ListenEndPoint, new Dictionary<int, Socket>());       // 在套接字数组内添加对应 网络终结点 键和 套接字字典 值
+                Socket ListenSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);// 创立监听套接字
+                ListenSocket.Bind(ListenEndPoint);                                             // 绑定网络终结点
+                ListenSocket.Listen(1000);                                                     // 设为监听模式 设置连接队列上限
+                ListenThreadDict.Add(ListenEndPoint, new Thread(new ThreadStart(() => Listening(ListenEndPoint, ListenSocket))));// 创建监听线程并加入字典
+                ListenThreadDict[ListenEndPoint].IsBackground = true;                          // 设为后台线程
+                ListenThreadDict[ListenEndPoint].Start();                                      // 启动线程
+                ListenSocketDict.Add(ListenEndPoint, ListenSocket);                            // 将监听套接字加入字典
+                
+            }
+        }
         /// <summary>
         /// 枚举
         /// </summary>
