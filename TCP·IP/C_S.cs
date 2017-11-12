@@ -373,9 +373,9 @@ namespace TCP_IP
                     Length = ConnectSocket.Receive(MessagesArray);                                 // 接收消息写入缓冲区，并获取长度
                 }
                 catch (SocketException se)
-                { NoError = false; }
+                { NoError = false; goto cc; }
                 catch (Exception se)
-                { NoError = false; }
+                { NoError = false; goto cc; }
                 if (NoError == true)
                 {
                     ClientMessages(ListenIPEndPoint, SocketDictID, MessagesArray, Length);         // 执行委托的事件，输出消息
