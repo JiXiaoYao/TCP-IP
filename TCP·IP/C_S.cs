@@ -5,6 +5,7 @@ using System.Linq;
 using System.Collections.Generic;
 using System.Threading;
 using System.Runtime;
+using System.Threading.Tasks;
 
 namespace TCP_IP
 {
@@ -38,7 +39,7 @@ namespace TCP_IP
         /// <param name="SocketDictID">套接字ID</param>
         /// <param name="MessagesArray">消息内容数组</param>
         /// <param name="MessagesLength">消息的长度</param>
-        public delegate void ClientMessagesDelegate(IPEndPoint ListenIPEndPoint, int SocketDictID, byte[] MessagesArray, int MessagesLength);
+        public delegate void ClientMessagesDelegate(IPEndPoint ListenIPEndPoint, long SocketDictID, byte[] MessagesArray, int MessagesLength);
         /// <summary>
         /// 客户端消息事件委托
         /// </summary>
@@ -48,7 +49,7 @@ namespace TCP_IP
         /// </summary>
         /// <param name="ListenIPEndPoint">连接的网络终结点</param>
         /// <param name="SocketDictID">套接字ID</param>
-        public delegate void ConnentStopDelegate(IPEndPoint ListenIPEndPoint, int SocketDictID);
+        public delegate void ConnentStopDelegate(IPEndPoint ListenIPEndPoint, long SocketDictID);
         /// <summary>
         /// Tcp套接字终止连接事件委托
         /// </summary>
@@ -58,7 +59,7 @@ namespace TCP_IP
         /// </summary>
         /// <param name="ListenIPEndPoint"></param>
         /// <param name="SocketDictID"></param>
-        public delegate void ClientConnentDelegate(IPEndPoint ListenIPEndPoint, int SocketDictID);
+        public delegate void ClientConnentDelegate(IPEndPoint ListenIPEndPoint, long SocketDictID);
         /// <summary>
         /// Tcp客户端连接事件委托
         /// </summary>
@@ -78,7 +79,9 @@ namespace TCP_IP
         IPAddress[] ListenIP;                                                                      // 侦听IP地址集
         int[] ListenPort;                                                                          // 侦听端口集
         ListenMode ServerMode;                                                                     // 侦听模式
-        int MessageSize;                                                                           // 接收消息缓存区大小
+        long MessageSize;                                                                           // 接收消息缓存区大小
+        bool IsNagle;                                                                              // 是否开启Nagle算法
+        long MaxID = 0;                                                                            // 最大SocketID
         #endregion
         #endregion
         #region 构造函数
@@ -90,8 +93,9 @@ namespace TCP_IP
         /// </summary>
         /// <param name="IpArray">IP地址数组</param>
         /// <param name="Port">端口1-65535</param>
-        /// <param name="ServerMessageSize">接收消息缓存区大小</param>
-        public Server(IPAddress[] IpArray, int Port, int ServerMessageSize)
+        /// <param name="ServerMessageSize">缓冲区大小，单位：Byte</param>
+        /// <param name="IfNagle">是否开启Nagle算法</param>
+        public Server(IPAddress[] IpArray, int Port, long ServerMessageSize, bool IfNagle)
         {
             string ErrorEndPoint = null;                                                           // 创建储存错误网络终结点的字符串
             for (int i = 0; i < IpArray.Length; i = i + 1)                                         // 遍历IP地址
@@ -113,6 +117,7 @@ namespace TCP_IP
                 int[] port = { Port };
                 ListenPort = port;                                                                 // 赋值端口
                 MessageSize = ServerMessageSize;                                                   // 赋值缓冲区大小
+                IsNagle = IfNagle;                                                                 // 赋值是否开启Nagle算法
             }
         }
         #region 重载
@@ -124,8 +129,9 @@ namespace TCP_IP
         /// </summary>
         /// <param name="IpArray">IP地址数组</param>
         /// <param name="Port">端口集</param>
-        /// <param name="ServerMessageSize">接收消息缓存区大小</param>
-        public Server(IPAddress[] IpArray, int[] Port, int ServerMessageSize)
+        /// <param name="ServerMessageSize">缓冲区大小，单位：Byte</param>
+        /// <param name="IfNagle">是否开启Nagle算法</param>
+        public Server(IPAddress[] IpArray, int[] Port, long ServerMessageSize, bool IfNagle)
         {
             string ErrorEndPoint = null;
             List<int> ErrorList = new List<int>();
@@ -153,6 +159,7 @@ namespace TCP_IP
                 ServerMode = ListenMode.Mode2;
                 ListenIP = IpArray;
                 ListenPort = Port;
+                IsNagle = IfNagle;
             }
         }
         #endregion
@@ -168,13 +175,13 @@ namespace TCP_IP
                 for (int i = 0; i < ListenIP.Length; i = i + 1)                                    // 循环遍历操作每个IP合上端口的网络终结点
                 {
                     IPEndPoint ListenEndPoint = new IPEndPoint(ListenIP[i], ListenPort[0]);        // 根据对应IP和端口创立网络终结点
-                    SocketIPEndPointDict.Add(ListenEndPoint, new Dictionary<long, Socket>());       // 在套接字数组内添加对应 网络终结点 键和 套接字字典 值
+                    SocketIPEndPointDict.Add(ListenEndPoint, new Dictionary<long, Socket>());      // 在套接字数组内添加对应 网络终结点 键和 套接字字典 值
                     Socket ListenSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);// 创立监听套接字
                     try
                     {
                         try
                         {
-                            ListenSocket.Bind(ListenEndPoint);                                         // 绑定网络终结点
+                            ListenSocket.Bind(ListenEndPoint);                                     // 绑定网络终结点
                         }
                         catch (Exception e)
                         {
@@ -182,7 +189,7 @@ namespace TCP_IP
                         }
                         try
                         {
-                            ListenSocket.Listen(1000);                                                 // 设为监听模式 设置连接队列上限
+                            ListenSocket.Listen(1000);                                             // 设为监听模式 设置连接队列上限
                         }
                         catch (Exception e)
                         {
@@ -206,7 +213,7 @@ namespace TCP_IP
                     for (int i = 0; i < ListenIP.Length; i = i + 1)                                // 循环遍历操作每个IP合上端口的网络终结点
                     {
                         IPEndPoint ListenEndPoint = new IPEndPoint(ListenIP[i], ListenPort[ia]);   // 根据对应IP和端口创立网络终结点
-                        SocketIPEndPointDict.Add(ListenEndPoint, new Dictionary<long, Socket>());   // 在套接字数组内添加对应 网络终结点 键和 套接字字典 值
+                        SocketIPEndPointDict.Add(ListenEndPoint, new Dictionary<long, Socket>());  // 在套接字数组内添加对应 网络终结点 键和 套接字字典 值
                         Socket ListenSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);// 创立监听套接字
                         try
                         {
@@ -339,22 +346,13 @@ namespace TCP_IP
         /// <param name="ConnectSocket">连接的套接字</param>
         private void ConnectDeal(IPEndPoint ListenIPEndPoint, Socket ConnectSocket)
         {
-            int SocketID;
-            if (SocketIPEndPointDict[ListenIPEndPoint].Keys.Count > 0)
-            {
-                Dictionary<long, Socket> dictionarySocket = SocketIPEndPointDict[ListenIPEndPoint];
-                //               套接字储存字典字典   键对应的字典      的键    的数组             的最后一个键的数值
-                SocketID = (int)dictionarySocket.Keys.ToArray()[dictionarySocket.Count - 1] + 1;// 获取处理键值
-            }
-            else
-            {
-
-                SocketID = 0;
-            }
-            ClientConnent(ListenIPEndPoint, SocketID);                                             // 执行客户端连接委托事件
+            MaxID = MaxID + 1;                                                                     // 更新MaxID
+            long MaxId = MaxID;
+            ConnectSocket.NoDelay = IsNagle;                                                       // 根据需要开启Nagle算法
+            ClientConnent(ListenIPEndPoint, MaxId);                                                // 执行客户端连接委托事件
                                                                                                    //套接字储存字典字典 键对应的字典 添加（   套接字储存字典字典   键对应的字典      的键    的数组             的最后一个键的数值                     + 1 ,Socket套接字）
-            SocketIPEndPointDict[ListenIPEndPoint].Add(SocketID, ConnectSocket);                   // 把套接字ID和套接字加入数组
-            Thread thread = new Thread(new ThreadStart(() => MessagesReceive(ListenIPEndPoint, ConnectSocket, SocketID)));// 创建消息接收线程
+            SocketIPEndPointDict[ListenIPEndPoint].Add(MaxId, ConnectSocket);                      // 把套接字ID和套接字加入数组
+            Thread thread = new Thread(new ThreadStart(() => MessagesReceive(ListenIPEndPoint, ConnectSocket, MaxId)));// 创建消息接收线程
             thread.IsBackground = true;                                                            // 设为后台线程
             thread.Start();                                                                        // 启动线程
         }
@@ -364,7 +362,7 @@ namespace TCP_IP
         /// <param name="ListenIPEndPoint">对应的网络终结点</param>
         /// <param name="ConnectSocket">连接的套接字</param>
         /// <param name="SocketDictID">套接字ID</param>
-        private void MessagesReceive(IPEndPoint ListenIPEndPoint, Socket ConnectSocket, int SocketDictID)
+        private void MessagesReceive(IPEndPoint ListenIPEndPoint, Socket ConnectSocket, long SocketDictID)
         {
             bool SocketState = true;
             while (SocketState)                                                                    // 确认套接字连接状态
@@ -389,7 +387,7 @@ namespace TCP_IP
             cc: ConnectSocket.Dispose();                                                           // 释放当前套接字
             SocketIPEndPointDict[ListenIPEndPoint].Remove(SocketDictID);                           // 从字典中移除该套接字
             ConnentStop(ListenIPEndPoint, SocketDictID);                                           // 执行客户端终止连接信息委托事件
-            GC.Collect();
+            GC.Collect();                                                                          // 执行内存清理
         }
         #endregion
         #region 主动执行功能
@@ -435,7 +433,30 @@ namespace TCP_IP
     public class Client
     {
         #region 变量
-
+        Dictionary<long, Socket> ClientSocketDict = new Dictionary<long, Socket>();
+        long MaxID = 0;
+        #endregion
+        #region 委托
+        /// <summary>
+        /// 收到信息委托
+        /// </summary>
+        /// <param name="ConnetID">连接ID</param>
+        /// <param name="MessagesArray">消息内容</param>
+        /// <param name="Length">消息长度</param>
+        public delegate void ConnetMessagesDelegate(long ConnetID, byte[] MessagesArray, long Length);
+        /// <summary>
+        /// 收到信息委托
+        /// </summary>
+        public ConnetMessagesDelegate ConnetMessages;
+        /// <summary>
+        /// 连接断开事件
+        /// </summary>
+        /// <param name="ConnetID">连接ID</param>
+        public delegate void ConnentStopDelegate(long ConnetID);
+        /// <summary>
+        /// 连接断开事件
+        /// </summary>
+        public ConnentStopDelegate ConnentStop;
         #endregion
         #region 开始一个连接
         /// <summary>
@@ -443,31 +464,75 @@ namespace TCP_IP
         /// </summary>
         /// <param name="ServerIP">远程服务器IP</param>
         /// <param name="ServerPort">远程服务器端口</param>
-        public void StartConnet(IPAddress ServerIP, int ServerPort)
+        /// <param name="IsNagle">是否开启Nagle算法</param>
+        /// <param name="MessageSize">缓冲区大小，单位：Byte</param>
+        public void StartConnet(IPAddress ServerIP, int ServerPort, bool IsNagle, long MessageSize)
         {
-
+            MaxID = MaxID + 1;                                                                     // 更新MaxID
+            long MaxId = MaxID;                                                                    // 更新maxID
+            Socket ClientConnet = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);// 创建套接字
+            ClientConnet.NoDelay = IsNagle;                                                        // 按需要打开Nagle算法
+            ClientConnet.Connect(ServerIP, ServerPort);                                            // 连接指定IP地址
+            ClientSocketDict.Add(MaxId, ClientConnet);                                             // 添加到字典内
+            Task TaskMessagesReceive = new Task(new Action(() => MessagesReceive(MaxId, ClientConnet, MessageSize)));// 执行创建消息接收线程
+            TaskMessagesReceive.Start();                                                           // 开始异步操作
         }
+        #region 重载
         /// <summary>
         /// 开始一个连接
         /// </summary>
         /// <param name="ServerIP">远程服务器IP</param>
         /// <param name="ServerPort">远程服务器端口</param>
-        /// <param name="LocalIP">本机IP</param>
-        public void StartConnet(IPAddress ServerIP, int ServerPort, IPAddress LocalIP)
-        {
-
-        }
-        /// <summary>
-        /// 开始一个连接
-        /// </summary>
-        /// <param name="ServerIP">远程服务器IP</param>
-        /// <param name="ServerPort">远程服务器端口</param>
+        /// <param name="IsNagle">是否开启Nagle算法</param>
+        /// <param name="MessageSize">缓冲区大小，单位：Byte</param>
         /// <param name="LocalIP">本机IP</param>
         /// <param name="LocalPort">本机端口</param>
-        public void StartConnet(IPAddress ServerIP, int ServerPort, IPAddress LocalIP, int LocalPort)
+        public void StartConnet(IPAddress ServerIP, int ServerPort, bool IsNagle, long MessageSize, IPAddress LocalIP, int LocalPort)
         {
-
+            MaxID = MaxID + 1;                                                                     // 更新MaxID
+            long MaxId = MaxID;                                                                    // 更新maxID
+            Socket ClientConnet = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);// 创建套接字
+            ClientConnet.Bind(new IPEndPoint(ServerIP, ServerPort));                               // 绑定本地网络终结点
+            ClientConnet.NoDelay = IsNagle;                                                        // 按需要打开Nagle算法
+            ClientConnet.Connect(ServerIP, ServerPort);                                            // 连接指定IP地址
+            ClientSocketDict.Add(MaxId, ClientConnet);                                             // 添加到字典内
+            Task TaskMessagesReceive = new Task(new Action(() => MessagesReceive(MaxId, ClientConnet, MessageSize)));// 执行创建消息接收线程
+            TaskMessagesReceive.Start();                                                           // 开始异步操作
         }
         #endregion
+        #endregion
+        /// <summary>
+        /// 接收消息
+        /// </summary>
+        /// <param name="ClientID">连接ID</param>
+        /// <param name="ConnentSocket">连接套接字</param>
+        /// <param name="MessageSize"></param>
+        public void MessagesReceive(long ClientID, Socket ConnentSocket, long MessageSize)
+        {
+            bool SocketState = true;
+            while (SocketState)                                                                    // 确认套接字连接状态
+            {
+                bool NoError = true;                                                               // 错误标识
+                byte[] MessagesArray = new byte[MessageSize];                                      // 创立缓冲区
+                long Length = -1;                                                                  // 创立消息长度
+                try
+                {
+                    Length = ConnentSocket.Receive(MessagesArray);                                 // 接收消息写入缓冲区，并获取长度
+                }
+                catch
+                { NoError = false; goto cc; }
+                if (NoError == true)
+                {
+                    ConnetMessages(ClientID, MessagesArray, Length);                               // 执行委托的事件，输出消息
+                }
+                try { SocketState = ConnentSocket.Poll(1, SelectMode.SelectWrite); } catch { goto cc; }// 发生错误直接跳出循环
+            }
+            // 当结束循环时就证明连接已中断
+            // 现在处理连接中断后事
+            cc: ConnentSocket.Dispose();                                                           // 释放当前套接字
+            ClientSocketDict.Remove(ClientID);                                                     // 从字典中移除该套接字
+            ConnentStop(ClientID);                                                                 // 执行连接终止连接信息委托事件
+            GC.Collect();
+        }
     }
 }
