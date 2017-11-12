@@ -85,6 +85,8 @@ namespace TCP_IP
         /// <summary>
         /// 单端口多IP模式
         /// 输出无连接端口标识
+        /// 警告：
+        /// 一定要在执行构造函数的外面放置try{}catch{}模块，一旦端口不合格或者被占用，就会抛出错误
         /// </summary>
         /// <param name="IpArray">IP地址数组</param>
         /// <param name="Port">端口1-65535</param>
@@ -112,13 +114,13 @@ namespace TCP_IP
                 ListenPort = port;                                                                 // 赋值端口
                 MessageSize = ServerMessageSize;                                                   // 赋值缓冲区大小
             }
-            cc: int a = 0;
-            a = a + 1;
         }
         #region 重载
         /// <summary>
         /// 多端口多IP模式
         /// 输出标识为：监听IP:监听端口
+        /// 警告：
+        /// 一定要在执行构造函数的外面放置try{}catch{}模块，一旦端口不合格或者被占用，就会抛出错误
         /// </summary>
         /// <param name="IpArray">IP地址数组</param>
         /// <param name="Port">端口集</param>
@@ -226,6 +228,8 @@ namespace TCP_IP
         }
         /// <summary>
         /// 添加端口侦听
+        /// 警告：
+        /// 一定要在执行构造函数的外面放置try{}catch{}模块，一旦端口不合格或者被占用，就会抛出错误
         /// </summary>
         /// <param name="IP">IP地址</param>
         /// <param name="Port">端口</param>
@@ -363,7 +367,7 @@ namespace TCP_IP
         private void MessagesReceive(IPEndPoint ListenIPEndPoint, Socket ConnectSocket, int SocketDictID)
         {
             bool SocketState = true;
-            while (SocketState)                                  // 确认套接字连接状态
+            while (SocketState)                                                                    // 确认套接字连接状态
             {
                 bool NoError = true;                                                               // 错误标识
                 byte[] MessagesArray = new byte[MessageSize];                                      // 创立缓冲区
@@ -372,9 +376,7 @@ namespace TCP_IP
                 {
                     Length = ConnectSocket.Receive(MessagesArray);                                 // 接收消息写入缓冲区，并获取长度
                 }
-                catch (SocketException se)
-                { NoError = false; goto cc; }
-                catch (Exception se)
+                catch
                 { NoError = false; goto cc; }
                 if (NoError == true)
                 {
@@ -427,8 +429,45 @@ namespace TCP_IP
             Mode2
         }
     }
+    /// <summary>
+    /// 客户端
+    /// </summary>
     public class Client
     {
+        #region 变量
 
+        #endregion
+        #region 开始一个连接
+        /// <summary>
+        /// 开始一个连接
+        /// </summary>
+        /// <param name="ServerIP">远程服务器IP</param>
+        /// <param name="ServerPort">远程服务器端口</param>
+        public void StartConnet(IPAddress ServerIP, int ServerPort)
+        {
+
+        }
+        /// <summary>
+        /// 开始一个连接
+        /// </summary>
+        /// <param name="ServerIP">远程服务器IP</param>
+        /// <param name="ServerPort">远程服务器端口</param>
+        /// <param name="LocalIP">本机IP</param>
+        public void StartConnet(IPAddress ServerIP, int ServerPort, IPAddress LocalIP)
+        {
+
+        }
+        /// <summary>
+        /// 开始一个连接
+        /// </summary>
+        /// <param name="ServerIP">远程服务器IP</param>
+        /// <param name="ServerPort">远程服务器端口</param>
+        /// <param name="LocalIP">本机IP</param>
+        /// <param name="LocalPort">本机端口</param>
+        public void StartConnet(IPAddress ServerIP, int ServerPort, IPAddress LocalIP, int LocalPort)
+        {
+
+        }
+        #endregion
     }
 }
