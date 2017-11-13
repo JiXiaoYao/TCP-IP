@@ -79,7 +79,7 @@ namespace TCP_IP
         IPAddress[] ListenIP;                                                                      // 侦听IP地址集
         int[] ListenPort;                                                                          // 侦听端口集
         ListenMode ServerMode;                                                                     // 侦听模式
-        long MessageSize;                                                                           // 接收消息缓存区大小
+        long MessageSize;                                                                          // 接收消息缓存区大小
         bool IsNagle;                                                                              // 是否开启Nagle算法
         long MaxID = 0;                                                                            // 最大SocketID
         #endregion
@@ -384,9 +384,12 @@ namespace TCP_IP
             }
             // 当结束循环时就证明连接已中断
             // 现在处理连接中断后事
-            cc: ConnectSocket.Dispose();                                                           // 释放当前套接字
-            SocketIPEndPointDict[ListenIPEndPoint].Remove(SocketDictID);                           // 从字典中移除该套接字
-            ConnentStop(ListenIPEndPoint, SocketDictID);                                           // 执行客户端终止连接信息委托事件
+            cc: if (SocketIPEndPointDict[ListenIPEndPoint].ContainsKey(SocketDictID))
+            {
+                ConnectSocket.Dispose();                                                           // 释放当前套接字
+                SocketIPEndPointDict[ListenIPEndPoint].Remove(SocketDictID);                       // 从字典中移除该套接字
+                ConnentStop(ListenIPEndPoint, SocketDictID);                                       // 执行客户端终止连接信息委托事件
+            }
             GC.Collect();                                                                          // 执行内存清理
         }
         #endregion
@@ -461,12 +464,13 @@ namespace TCP_IP
         #region 开始一个连接
         /// <summary>
         /// 开始一个连接
+        /// 返回这个连接的连接ID
         /// </summary>
         /// <param name="ServerIP">远程服务器IP</param>
         /// <param name="ServerPort">远程服务器端口</param>
         /// <param name="IsNagle">是否开启Nagle算法</param>
         /// <param name="MessageSize">缓冲区大小，单位：Byte</param>
-        public void StartConnet(IPAddress ServerIP, int ServerPort, bool IsNagle, long MessageSize)
+        public long StartConnet(IPAddress ServerIP, int ServerPort, bool IsNagle, long MessageSize)
         {
             MaxID = MaxID + 1;                                                                     // 更新MaxID
             long MaxId = MaxID;                                                                    // 更新maxID
@@ -476,10 +480,13 @@ namespace TCP_IP
             ClientSocketDict.Add(MaxId, ClientConnet);                                             // 添加到字典内
             Task TaskMessagesReceive = new Task(new Action(() => MessagesReceive(MaxId, ClientConnet, MessageSize)));// 执行创建消息接收线程
             TaskMessagesReceive.Start();                                                           // 开始异步操作
+            return MaxId;
         }
         #region 重载
         /// <summary>
         /// 开始一个连接
+        /// 使用指定的本地地址进行连接
+        /// 返回这个连接的连接ID
         /// </summary>
         /// <param name="ServerIP">远程服务器IP</param>
         /// <param name="ServerPort">远程服务器端口</param>
@@ -487,7 +494,7 @@ namespace TCP_IP
         /// <param name="MessageSize">缓冲区大小，单位：Byte</param>
         /// <param name="LocalIP">本机IP</param>
         /// <param name="LocalPort">本机端口</param>
-        public void StartConnet(IPAddress ServerIP, int ServerPort, bool IsNagle, long MessageSize, IPAddress LocalIP, int LocalPort)
+        public long StartConnet(IPAddress ServerIP, int ServerPort, bool IsNagle, long MessageSize, IPAddress LocalIP, int LocalPort)
         {
             MaxID = MaxID + 1;                                                                     // 更新MaxID
             long MaxId = MaxID;                                                                    // 更新maxID
@@ -498,9 +505,11 @@ namespace TCP_IP
             ClientSocketDict.Add(MaxId, ClientConnet);                                             // 添加到字典内
             Task TaskMessagesReceive = new Task(new Action(() => MessagesReceive(MaxId, ClientConnet, MessageSize)));// 执行创建消息接收线程
             TaskMessagesReceive.Start();                                                           // 开始异步操作
+            return MaxId;
         }
         #endregion
         #endregion
+        #region Client端代码
         /// <summary>
         /// 接收消息
         /// </summary>
@@ -529,10 +538,46 @@ namespace TCP_IP
             }
             // 当结束循环时就证明连接已中断
             // 现在处理连接中断后事
-            cc: ConnentSocket.Dispose();                                                           // 释放当前套接字
-            ClientSocketDict.Remove(ClientID);                                                     // 从字典中移除该套接字
-            ConnentStop(ClientID);                                                                 // 执行连接终止连接信息委托事件
+            cc: if (ClientSocketDict.ContainsKey(ClientID))
+            {
+                ConnentSocket.Dispose();                                                           // 释放当前套接字
+                ClientSocketDict.Remove(ClientID);                                                 // 从字典中移除该套接字
+                ConnentStop(ClientID);                                                             // 执行连接终止连接信息委托事件
+            }
             GC.Collect();
+        }
+        /// <summary>
+        /// 终止一个连接
+        /// </summary>
+        /// <param name="ClientID">连接ID</param>
+        /// <param name="Time">等待剩余消息发送的时间</param>
+        public void Stop(long ClientID, int Time)
+        {
+            ClientSocketDict[ClientID].Close(Time);
+            ClientSocketDict[ClientID].Dispose();
+            ClientSocketDict.Remove(ClientID);
+        }
+        /// <summary>
+        /// 发送消息
+        /// </summary>
+        /// <param name="ClientID">连接ID</param>
+        /// <param name="SendContext">发送的内容</param>
+        public void Send(long ClientID, byte[] SendContext)
+        {
+            ClientSocketDict[ClientID].Send(SendContext);
+        }
+        #endregion
+        /// <summary>
+        /// 停止所有连接
+        /// </summary>
+        public void Close()
+        {
+            for (int i = 0; i < ClientSocketDict.Count; i = i + 1)
+            {
+                ClientSocketDict[ClientSocketDict.Keys.ToArray()[i]].Close(1000);
+                ClientSocketDict[ClientSocketDict.Keys.ToArray()[i]].Dispose();
+                ClientSocketDict.Remove(ClientSocketDict.Keys.ToArray()[i]);
+            }
         }
     }
 }
