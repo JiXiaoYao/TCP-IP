@@ -8,17 +8,24 @@
 <p>Server端使用方法：</p>
 <pre>
 using System;
-using TCP_IP;
+using TCPCS;
 namespace app
   {
     public class Class1
     {
-      TCP_IP.Server TcpServer;
+      TCPCS.Server TcpServer;
       public void StartServer()
       {
       IPAddress[] IpArray = { IPAddress.Parse("127.0.0.1") };
-      TcpServer = new TCP_IP.Server(IpArray,25565);
+      TcpServer = new TCPCS.Server(IpArray,25565);
+      TcpServer.ClientMessages += ClientMessages;
+      TcpServer.
+      TcpServer.
       TcpServer.StartListen();
+      }
+      public void ClientMessages(IPEndPoint 监听的IP:端口, long Socket连接的ID, byte[] 收到的字节数组, int 字节数组内的信息长度)
+      {
+      
       }
     }
   }
