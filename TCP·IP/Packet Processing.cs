@@ -16,7 +16,7 @@ namespace TCPCS
         /// </summary>
         /// <param name="Context"></param>
         /// <returns></returns>
-        public string Encapsulation(byte[] Context)
+        public static string Encapsulation(byte[] Context)
         {
             string ContextBase64 = Convert.ToBase64String(Context);
             long ByteDataLength = Context.Length;
@@ -30,7 +30,7 @@ namespace TCPCS
         /// </summary>
         /// <param name="Pack"></param>
         /// <returns></returns>
-        public byte[] Unpack(string Pack)
+        public static byte[] Unpack(string Pack)
         {
             if (Pack.Substring(0, 11) == "<DataStart>" && Pack.Substring(Pack.Length - 1 - 9, 9) == "<DataEnd>")
             {
