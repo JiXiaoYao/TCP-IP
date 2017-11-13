@@ -6,7 +6,7 @@
 <p><p>Server端的创建只要New一个TCP_IP.Server类的对象，构造函数输入IP和端口，然后绑定收到客户端连接事件、收到消息事件、接收消息报错事件和客户端终止连接事件，同时也可以通过TCP_IP.Server类对象.SocketIPEndPointDict[监听的网络终结点].[套接字ID]直接操作套接字</p>
 <p>Client端亦是如此</p>
 <p>Server端使用方法：</p>
-<code>
+<pre>
 using System;
 using TCP_IP;
 namespace app
@@ -22,4 +22,4 @@ namespace app
       }
     }
   }
-</code>
+</pre>
