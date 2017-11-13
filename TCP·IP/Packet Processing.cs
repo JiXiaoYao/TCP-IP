@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace TCP_IP
+namespace TCPCS
 {
     /// <summary>
     /// 实现拆包装包
@@ -25,6 +25,11 @@ namespace TCP_IP
             string Return = "<DataStart>{" + ByteDataLength + "}{" + Base64Length + "}{" + ContextBase64 + "}<DataEnd>";
             return Return;
         }
+        /// <summary>
+        /// 拆包方法
+        /// </summary>
+        /// <param name="Pack"></param>
+        /// <returns></returns>
         public byte[] Unpack(string Pack)
         {
             if (Pack.Substring(0, 11) == "<DataStart>" && Pack.Substring(Pack.Length - 1 - 9, 9) == "<DataEnd>")
