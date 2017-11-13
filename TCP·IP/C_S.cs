@@ -560,12 +560,28 @@ namespace TCP_IP
         /// <summary>
         /// 发送消息
         /// </summary>
-        /// <param name="ClientID">连接ID</param>
+        /// <param name="ClientID">连接ID</param> 
         /// <param name="SendContext">发送的内容</param>
-        public void Send(long ClientID, byte[] SendContext)
+        public int Send(long ClientID, byte[] SendContext)
         {
-            ClientSocketDict[ClientID].Send(SendContext);
+            return ClientSocketDict[ClientID].Send(SendContext);
         }
+#region 重载
+        /// <summary>
+        /// 发送消息
+        /// 参考MSDN
+        /// </summary>
+        /// <param name="ClientID"></param>
+        /// <param name="SendContext"></param>
+        /// <param name="offset"></param>
+        /// <param name="size"></param>
+        /// <param name="socketFlags"></param>
+        /// <returns></returns>
+        public int Send(long ClientID, byte[] SendContext, int offset, int size, SocketFlags socketFlags)
+        {
+            return ClientSocketDict[ClientID].Send(SendContext, offset, size, socketFlags);
+        }
+        #endregion
         #endregion
         /// <summary>
         /// 停止所有连接
