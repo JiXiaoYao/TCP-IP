@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <DocumentationFile>bin\Debug\netcoreapp1.1\TCP·IP.xml</DocumentationFile>
+    <DocumentationFile>bin\Debug\netcoreapp2.0\TCPCS.xml</DocumentationFile>
     <Optimize>true</Optimize>
   </PropertyGroup>
 

@@ -7,7 +7,7 @@ namespace TCPCS
     /// <summary>
     /// 实现拆包装包
     /// </summary>
-    class Packet
+    public class Packet
     {
         /// <summary>
         /// 装包
